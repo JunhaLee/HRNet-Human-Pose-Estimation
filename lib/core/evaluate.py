@@ -94,19 +94,10 @@ def accuracy(output, target, head_size,width, height, hm_type='gaussian', thr=0.
         h = output.shape[2]
         w = output.shape[3]
         norm = np.ones((pred.shape[0], 2)) * np.array([h, w]) / 10 # 6.4, 4.8
-        #print('output:', output.shape) #--> (128, 17, 64, 48)
-        #exit(0)
-        
-        #normalize head_size
-        #print('head_size: ', head_size)
-        #feat_stride = image_size / heatmap_size
-        #head_size[0] = head_size[0] / feat_stride[0]
-        #head_size[1] = head_size[1] / feat_stride[1]
+       
         head_h = head_size[0] / (height / h)
         head_w = head_size[1] / (width / w)
-        #print('norm_head_h_size: ', head_h)
-        #print('norm_head_w_size: ', head_w)
-        
+
         threshold = np.zeros(len(head_size[0]))
 
         for i in range(len(head_size[0])):
