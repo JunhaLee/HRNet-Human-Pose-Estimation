@@ -21,6 +21,8 @@ import numpy as np
 from dataset.JointsDataset import JointsDataset
 from nms.nms import oks_nms
 from nms.nms import soft_oks_nms
+import math
+import cv2
 
 
 logger = logging.getLogger(__name__)
@@ -122,6 +124,8 @@ class COCODataset(JointsDataset):
     def _load_image_set_index(self):
         """ image id: int """
         image_ids = self.coco.getImgIds()
+        #print('TEST:',image_ids)
+        #exit(0)
         return image_ids
 
     def _get_db(self):
@@ -151,12 +155,24 @@ class COCODataset(JointsDataset):
         :param index: coco image id
         :return: db entry
         """
+        
         im_ann = self.coco.loadImgs(index)[0]
+        
+        #print('type:', type(im_ann))
+        #print(im_ann)
+        #exit(0)
+        
         width = im_ann['width']
         height = im_ann['height']
+        
 
-        annIds = self.coco.getAnnIds(imgIds=index, iscrowd=False)
+        annIds = self.coco.getAnnIds(imgIds=index, iscrowd=False) 
+        #print('annIDs : ' , annIds)      
+        #exit(0) 
         objs = self.coco.loadAnns(annIds)
+        
+        #print(objs)
+        #exit(0)	
 
         # sanitize bboxes
         valid_objs = []
@@ -166,9 +182,10 @@ class COCODataset(JointsDataset):
             y1 = np.max((0, y))
             x2 = np.min((width - 1, x1 + np.max((0, w - 1))))
             y2 = np.min((height - 1, y1 + np.max((0, h - 1))))
-            if obj['area'] > 0 and x2 >= x1 and y2 >= y1:
-                obj['clean_bbox'] = [x1, y1, x2-x1, y2-y1]
-                valid_objs.append(obj)
+            #if obj['area'] > 0 and x2 >= x1 and y2 >= y1: #*#
+            obj['clean_bbox'] = [x1, y1, x2-x1, y2-y1] #*#
+            head_size = obj['face_size']
+            valid_objs.append(obj)
         objs = valid_objs
 
         rec = []
@@ -183,6 +200,8 @@ class COCODataset(JointsDataset):
 
             joints_3d = np.zeros((self.num_joints, 3), dtype=np.float)
             joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
+            
+            
             for ipt in range(self.num_joints):
                 joints_3d[ipt, 0] = obj['keypoints'][ipt * 3 + 0]
                 joints_3d[ipt, 1] = obj['keypoints'][ipt * 3 + 1]
@@ -203,6 +222,9 @@ class COCODataset(JointsDataset):
                 'joints_3d_vis': joints_3d_vis,
                 'filename': '',
                 'imgnum': 0,
+                'head_size':head_size,
+                'width': width,
+                'height' : height,
             })
 
         return rec
@@ -231,6 +253,8 @@ class COCODataset(JointsDataset):
     def image_path_from_index(self, index):
         """ example: images / train2017 / 000000119993.jpg """
         file_name = '%012d.jpg' % index
+        #print(self.image_set + " " + file_name)
+        
         if '2014' in self.image_set:
             file_name = 'COCO_%s_' % self.image_set + file_name
 
@@ -247,6 +271,7 @@ class COCODataset(JointsDataset):
         all_boxes = None
         with open(self.bbox_file, 'r') as f:
             all_boxes = json.load(f)
+            
 
         if not all_boxes:
             logger.error('=> Load %s fail!' % self.bbox_file)
@@ -286,10 +311,33 @@ class COCODataset(JointsDataset):
             self.image_thre, num_boxes))
         return kpt_db
 
-    def evaluate(self, cfg, preds, output_dir, all_boxes, img_path,
-                 *args, **kwargs):
+    def evaluate(self, cfg, preds, output_dir, all_boxes, img_path, *args, **kwargs):
+        target_keypoints =  [[[0 for j in range(2)] for i in range(17)] for k in range(len(all_boxes))]
+        head_sizes = [[0 for j in range(2)] for k in range(len(all_boxes))]        
+	
+        
+        
+        for idx in range(200000, 200000+len(all_boxes)):    
+            im_ann = self.coco.loadImgs(idx)[0]
+            annIds = self.coco.getAnnIds(imgIds=idx, iscrowd=False)
+            objs = self.coco.loadAnns(annIds)
+            for obj in objs:
+            	k_points = obj['keypoints'] 
+            	#print('k_points: ',k_points)
+            	head_size = obj['face_size'] 
+            	#print('head_size :', head_size) 
+            	cnt = 0
+            	for j in range(17):
+            	    for k in range(2):
+            	        target_keypoints[idx-200000][j][k] = k_points[cnt]  
+            	        cnt+=1
+            	    cnt+=1
+            	head_sizes[idx-200000][0] = head_size[0]
+            	head_sizes[idx-200000][1] = head_size[1]
+               
+                  
+                 
         rank = cfg.RANK
-
         res_folder = os.path.join(output_dir, 'results')
         if not os.path.exists(res_folder):
             try:
@@ -304,7 +352,13 @@ class COCODataset(JointsDataset):
 
         # person x (keypoints)
         _kpts = []
+        pred_keypoints = [[[0 for j in range(2)] for i in range(17)] for k in range(len(all_boxes))]
         for idx, kpt in enumerate(preds):
+            #print('kpt: ', kpt)
+            for j in range(17):
+                for k in range(2):
+                    pred_keypoints[idx][j][k] = kpt[j][k] 
+	        
             _kpts.append({
                 'keypoints': kpt,
                 'center': all_boxes[idx][0:2],
@@ -354,16 +408,19 @@ class COCODataset(JointsDataset):
                 oks_nmsed_kpts.append(img_kpts)
             else:
                 oks_nmsed_kpts.append([img_kpts[_keep] for _keep in keep])
-
         self._write_coco_keypoint_results(
             oks_nmsed_kpts, res_file)
+            
         if 'test' not in self.image_set:
+            #info_str = self._do_python_keypoint_eval(
+            #    res_file, res_folder)
             info_str = self._do_python_keypoint_eval(
-                res_file, res_folder)
+                target_keypoints, pred_keypoints, head_sizes)
             name_value = OrderedDict(info_str)
-            return name_value, name_value['AP']
+            return name_value, name_value['PCK_h@0.75']
         else:
             return {'Null': 0}, 0
+        
 
     def _write_coco_keypoint_results(self, keypoints, res_file):
         data_pack = [
@@ -426,8 +483,75 @@ class COCODataset(JointsDataset):
             ]
             cat_results.extend(result)
 
-        return cat_results
+        return cat_results 
+  
+    def _do_python_keypoint_eval(self, target, pred, head_size):
+        idx = list(range(17))
+        threshold = np.zeros(len(head_size))
+        for i in range(len(head_size)):
+        	threshold[i] = (math.sqrt(math.pow(head_size[i][0],2) + math.pow(head_size[i][1],2)) * 0.6) * 0.25  
+        #print('threshold:', threshold)
+        target = np.array(target)
+        pred = np.array(pred)
+        
+        dists = self.calc_dists(pred, target)        
+        
+        acc = np.zeros((len(idx) + 1)) #acc 18
+        avg_acc = 0
+        cnt = 0
+        
+        for i in range(len(idx)): # by class
+            acc[i + 1] = self.dist_acc(dists[idx[i]],threshold)
+            if acc[i + 1] >= 0:
+                avg_acc = avg_acc + acc[i + 1]
+                cnt += 1
 
+        avg_acc = avg_acc / cnt if cnt != 0 else 0
+
+        if cnt != 0:
+            acc[0] = avg_acc
+        
+        info_str = []
+        info_str.append(('PCK_h@0.75', acc[0]))
+        
+        
+        return info_str
+        
+                  
+    def calc_dists(self, preds, target):
+        preds = preds.astype(np.float32)
+        #print('preds: ',preds)
+        target = target.astype(np.float32)
+        #print('target: ', target)
+        dists = np.zeros((preds.shape[1], preds.shape[0]))
+        for n in range(preds.shape[0]):
+            for c in range(preds.shape[1]):
+                if target[n, c, 0] > 1 and target[n, c, 1] > 1:
+                    normed_preds = preds[n, c, :]
+                    normed_targets = target[n, c, :]
+                    dists[c, n] = np.linalg.norm(normed_preds - normed_targets)
+                else:
+                    dists[c, n] = -1
+        #print('dists: ',dists)      
+        return dists
+        
+    def dist_acc(self, dists, thr):    
+        num_dist_cal = 0
+        correct_pred = 0
+        for i in range(len(dists)):
+    	    if dists[i] != -1:
+  	        num_dist_cal += 1
+  	        if(dists[i] < thr[i]):
+  	    	    correct_pred += 1
+    
+        if num_dist_cal > 0 :
+    	    return correct_pred / num_dist_cal
+        else:
+    	    return -1    
+        
+         
+        
+    """
     def _do_python_keypoint_eval(self, res_file, res_folder):
         coco_dt = self.coco.loadRes(res_file)
         coco_eval = COCOeval(self.coco, coco_dt, 'keypoints')
@@ -441,5 +565,5 @@ class COCODataset(JointsDataset):
         info_str = []
         for ind, name in enumerate(stats_names):
             info_str.append((name, coco_eval.stats[ind]))
-
         return info_str
+    """ 
