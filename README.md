@@ -1,4 +1,4 @@
-This code is Deep HRNet to training with my dataset, and using PCK-h@0.5 instead of PCK when evaluating accuracy. Result below is not correct in my code. You can see the original code in [here](https://github.com/HRNet/HRNet-Human-Pose-Estimation).
+This code is Deep HRNet for training by my dataset, and using PCK-h@0.5 instead of PCK when evaluating accuracy. Result below is not correct in my code. You can see the original code in [here](https://github.com/HRNet/HRNet-Human-Pose-Estimation).
 
 # Deep High-Resolution Representation Learning for Human Pose Estimation (accepted to CVPR2019)
 ## News
