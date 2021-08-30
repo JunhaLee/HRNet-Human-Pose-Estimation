@@ -41,7 +41,9 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
 
         # compute output
         outputs = model(input)
-
+        #print('outputs:' , outputs.shape)
+        #exit(0)
+	
         target = target.cuda(non_blocking=True)
         target_weight = target_weight.cuda(non_blocking=True)
 
@@ -62,9 +64,8 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
 
         # measure accuracy and record loss
         losses.update(loss.item(), input.size(0))
-
-        _, avg_acc, cnt, pred = accuracy(output.detach().cpu().numpy(),
-                                         target.detach().cpu().numpy())
+        #_, avg_acc, cnt, pred = accuracy(output.detach().cpu().numpy(),target.detach().cpu().numpy())
+        _, avg_acc, cnt, pred = accuracy(output.detach().cpu().numpy(),target.detach().cpu().numpy(),meta['head_size'],meta['width'], meta['height'])
         acc.update(avg_acc, cnt)
 
         # measure elapsed time
@@ -118,6 +119,8 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
         for i, (input, target, target_weight, meta) in enumerate(val_loader):
             # compute output
             outputs = model(input)
+            #print(meta['head_size'])
+            #exit()
             if isinstance(outputs, list):
                 output = outputs[-1]
             else:
@@ -155,8 +158,8 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
             num_images = input.size(0)
             # measure accuracy and record loss
             losses.update(loss.item(), num_images)
-            _, avg_acc, cnt, pred = accuracy(output.cpu().numpy(),
-                                             target.cpu().numpy())
+            #_, avg_acc, cnt, pred = accuracy(output.cpu().numpy(),target.cpu().numpy())
+            _, avg_acc, cnt, pred = accuracy(output.detach().cpu().numpy(),target.detach().cpu().numpy(),meta['head_size'],meta['width'], meta['height'])
 
             acc.update(avg_acc, cnt)
 
