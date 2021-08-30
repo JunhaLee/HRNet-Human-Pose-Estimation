@@ -111,11 +111,22 @@ class JointsDataset(Dataset):
         return len(self.db)
 
     def __getitem__(self, idx):
+    	
         db_rec = copy.deepcopy(self.db[idx])
-
+        #if self.is_train is False:
+            #print(db_rec)
+        
+	
         image_file = db_rec['image']
         filename = db_rec['filename'] if 'filename' in db_rec else ''
         imgnum = db_rec['imgnum'] if 'imgnum' in db_rec else ''
+        head_size = db_rec['head_size'] if 'head_size' in db_rec else ''
+        width = db_rec['width'] if 'width' in db_rec else ''
+        height = db_rec['height'] if 'height' in db_rec else ''
+	 
+
+
+	
 
         if self.data_format == 'zip':
             from utils import zipreader
@@ -129,6 +140,7 @@ class JointsDataset(Dataset):
 
         if self.color_rgb:
             data_numpy = cv2.cvtColor(data_numpy, cv2.COLOR_BGR2RGB)
+
 
         if data_numpy is None:
             logger.error('=> fail to read {}'.format(image_file))
@@ -192,7 +204,10 @@ class JointsDataset(Dataset):
             'center': c,
             'scale': s,
             'rotation': r,
-            'score': score
+            'score': score,
+            'head_size': head_size,
+            'width': width,
+            'height': height,
         }
 
         return input, target, target_weight, meta
@@ -248,11 +263,11 @@ class JointsDataset(Dataset):
                                self.heatmap_size[0]),
                               dtype=np.float32)
 
-            tmp_size = self.sigma * 3
+            tmp_size = self.sigma * 3 #2*3=6
 
             for joint_id in range(self.num_joints):
                 feat_stride = self.image_size / self.heatmap_size
-                mu_x = int(joints[joint_id][0] / feat_stride[0] + 0.5)
+                mu_x = int(joints[joint_id][0] / feat_stride[0] + 0.5) 
                 mu_y = int(joints[joint_id][1] / feat_stride[1] + 0.5)
                 # Check that any part of the gaussian is in-bounds
                 ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
@@ -285,5 +300,7 @@ class JointsDataset(Dataset):
 
         if self.use_different_joints_weight:
             target_weight = np.multiply(target_weight, self.joints_weight)
+            
+        #print('target shape: ', target.shape)
 
         return target, target_weight
